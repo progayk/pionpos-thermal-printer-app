@@ -10,16 +10,14 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
+  "bin": "./index.js",
   "pkg": {
-    "scripts": "build/**/*.js",
     "assets": "views/**/*",
-    "targets": [
-      "node14-macos-arm64"
-    ],
     "outputPath": "dist"
   },
   "dependencies": {
     "body-parser": "^1.20.0",
+    "chrome-launcher": "^0.15.1",
     "express": "^4.18.1",
     "node-thermal-printer": "^4.1.2"
   },

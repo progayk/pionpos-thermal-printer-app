@@ -17,6 +17,8 @@ const port = 5002;
 const ThermalPrinter = require("node-thermal-printer").printer;
 const PrinterTypes = require("node-thermal-printer").types;
 
+const chromeLauncher = require('chrome-launcher');
+
 const ORDER_TYPE = "ORDER"
 const RECEIPT_TYPE = "RECEIPT"
 
@@ -145,9 +147,6 @@ const replaceTrChars = (temp) => {
 }
 
 
-// Setting up our port
-server.listen(port, () => console.log("Server at", port));
-
 // Configuiring simple express routes
 // getDir() function is used here along with package.json.pkg.assets
 app.use(bodyParser.json());
@@ -163,9 +162,22 @@ app.post('/print', (req, res) => {
     return res.send(JSON.stringify("hello"));
 });
 
+// Setting up our port
+server.listen(port, () => console.log("Server at", port));
+
+
+chromeLauncher.launch({
+    startingUrl: 'http://localhost:5002',
+    // chromeFlags: ['--headless', '--disable-gpu']
+}).then(chrome => {
+    console.log(`Chrome debugging port running on ${chrome.port}`);
+});
+
+
 
 // Using a function to set default app path
 function getDir() {
+    return __dirname;
     if (process.pkg) {
         return path.resolve(process.execPath + "/..");
     } else {
