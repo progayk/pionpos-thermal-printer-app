@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pionpos | Thermal Printer Server</title>
+    <!-- <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css"
+    /> -->
+    <style>
+      #login {
+      }
+      #app {
+        display: none;
+      }
+      #available-printers {
+        display: flex;
+      }
+
+      .printer-container {
+        margin: 1rem;
+        padding: 0 1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div>
+      <h1>Pionpos | Thermal Printer Server</h1>
+    </div>
+    <main>
+      <div id="login">
+        <form method="post" id="sign-in-form">
+          <div class="field">
+            <label for="email">E-mail:</label>
+            <input type="email" id="email" name="email" placeholder="E-mail" />
+            <small></small>
+          </div>
+          <div class="field">
+            <label for="password">Password:</label>
+            <input
+              type="password"
+              id="password"
+              name="password"
+              placeholder="password"
+            />
+            <small></small>
+          </div>
+          <button type="Submit">Log in</button>
+        </form>
+      </div>
+
+      <div id="app">
+        <div>
+          <p>Logged in as <b id="user-email"></b></p>
+          <form method="post" id="logout-form">
+            <button type="submit">Log out</button>
+          </form>
+
+          <div id="printer-container">
+            <h3>Printers</h3>
+            <div id="available-printers"></div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <script type="module">
+      // Import the functions you need from the SDKs you need
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/9.8.2/firebase-app.js";
+      import {
+        onAuthStateChanged,
+        getAuth,
+        signInWithEmailAndPassword,
+        signOut,
+      } from "https://www.gstatic.com/firebasejs/9.8.2/firebase-auth.js";
+      import {
+        getFirestore,
+        onSnapshot,
+        getDoc,
+        doc,
+      } from "https://www.gstatic.com/firebasejs/9.8.2/firebase-firestore.js";
+      // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+      const firebaseConfig = {
+        apiKey: "AIzaSyDbDnpukMQEqzXKspOhng8ggh0H8ZHQChs",
+        authDomain: "paragastroteka-inventory.firebaseapp.com",
+        databaseURL: "https://paragastroteka-inventory.firebaseio.com",
+        projectId: "paragastroteka-inventory",
+        storageBucket: "paragastroteka-inventory.appspot.com",
+        messagingSenderId: "959426384340",
+        appId: "1:959426384340:web:9cbb1b8686ca5ec2f6c641",
+      };
+
+      // Initialize Firebase
+      const app = initializeApp(firebaseConfig);
+      const db = getFirestore(app);
+      const auth = getAuth(app);
+
+      let AUTH_USER;
+      let BRANCH_PATH;
+
+      const init = () => {
+        testPrinter();
+        subscribeToReceipts();
+        getRestaurantData();
+      };
+
+      onAuthStateChanged(auth, (user) => {
+        if (user) {
+          AUTH_USER = user;
+          showAuthView(false);
+          getToken().then(() => init());
+        } else {
+          showAuthView(true);
+        }
+      });
+
+      const showAuthView = (flag) => {
+        const loginEl = document.getElementById("login");
+        const appEl = document.getElementById("app");
+        loginEl.style.display = flag ? "block" : "none";
+        appEl.style.display = flag ? "none" : "block";
+
+        const userEmailEl = document.getElementById("user-email");
+        if (!flag && userEmailEl) {
+          userEmailEl.innerText = auth.currentUser.email;
+        }
+      };
+
+      const signInForm = document.getElementById("sign-in-form");
+
+      signInForm.addEventListener("submit", (event) => {
+        // stop form submission
+        event.preventDefault();
+        const email = signInForm.elements["email"].value;
+        const password = signInForm.elements["password"].value;
+        logInWithEmailAndPassword(email, password);
+      });
+
+      const logoutForm = document.getElementById("logout-form");
+      logoutForm.addEventListener("submit", (event) => {
+        // stop form submission
+        event.preventDefault();
+        logout();
+      });
+
+      const logInWithEmailAndPassword = async (email, password) => {
+        return signInWithEmailAndPassword(auth, email, password).then(() => {
+          showAuthView(true);
+        });
+      };
+
+      const logout = async () => {
+        return signOut(auth).then(() => {
+          showAuthView(false);
+        });
+      };
+
+      const getToken = async () => {
+        return auth.currentUser
+          ?.getIdTokenResult()
+          .then((res) => {
+            AUTH_USER = { ...AUTH_USER, claims: res.claims };
+            BRANCH_PATH = `customers/${res.claims.customerId}/branches/${res.claims.branchId}`;
+          })
+          .catch((err) => {
+            console.error(err);
+            alert(err.message);
+          });
+      };
+
+      // ---
+
+      const getPrinterConfiguration = async () => {};
+
+      const testPrinter = (tcp) => {};
+
+      const subscribeToReceipts = () => {
+        const RESOURCE_PATH = `${BRANCH_PATH}/messegeQeue/msg`;
+
+        onSnapshot(doc(db, RESOURCE_PATH), (doc) => {
+          print(doc.data());
+        });
+      };
+
+      const getRestaurantData = async () => {
+        try {
+          const docRef = doc(db, `${BRANCH_PATH}`);
+          const docSnap = await getDoc(docRef);
+
+          const data = docSnap.data();
+
+          createAvailablePrinterElems(data.printerSettings.avaliablePrinters);
+        } catch (error) {
+          console.error(error);
+        }
+      };
+
+      const createAvailablePrinterElems = (printers) => {
+        const printerContainerEl =
+          document.getElementById("available-printers");
+
+        printers.forEach((printer) => {
+          const fieldSetEl = document.createElement("fieldset");
+          const legendEl = document.createElement("legend");
+          const statusEl = document.createElement("p");
+          const printerTcpEl = document.createElement("p");
+          const printerRefs = document.createElement("p");
+
+          fieldSetEl.classList.add("printer-container");
+          legendEl.innerText = printer.name;
+          fieldSetEl.appendChild(legendEl);
+
+          statusEl.innerText = "Status: ";
+          fieldSetEl.appendChild(statusEl);
+
+          printerTcpEl.innerText = `address: ${printer.TCP_ADDRESS}`;
+          fieldSetEl.appendChild(printerTcpEl);
+
+          printerRefs.innerText = `ref: ${printer.sectionRef}`;
+          fieldSetEl.appendChild(printerRefs);
+
+          printerContainerEl.appendChild(fieldSetEl);
+        });
+      };
+
+      const print = async (data) => {
+        console.log({ data });
+
+        return fetch("http://localhost:5002/print", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        })
+          .then((res) => {
+            console.log({ res });
+            if (res.ok) {
+              return res.json();
+            }
+          })
+          .then((data) => {
+            console.log({ data });
+          })
+          .catch((err) => {
+            console.error(err);
+          });
+      };
+    </script>
+  </body>
+</html>

@@ -1,0 +1,29 @@
+{
+  "name": "compiled-printer-app",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "pkg": {
+    "scripts": "build/**/*.js",
+    "assets": "views/**/*",
+    "targets": [
+      "node14-macos-arm64"
+    ],
+    "outputPath": "dist"
+  },
+  "dependencies": {
+    "body-parser": "^1.20.0",
+    "express": "^4.18.1",
+    "node-thermal-printer": "^4.1.2"
+  },
+  "devDependencies": {
+    "pkg": "^5.7.0"
+  }
+}
