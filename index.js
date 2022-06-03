@@ -4,127 +4,53 @@
     // this function is strict...
 }());
 
-// Setting up our app requirements
-
 const express = require('express');
 const bodyParser = require('body-parser');
 const app = express();
 const Server = require('http').Server;
 const server = new Server(app);
-const path = require('path');
+// const path = require('path');
 const port = 5002;
+const cors = require("cors");
+const corsOptions = {
+    origin: '*',
+    // credentials: true,            //access-control-allow-credentials:true
+    // optionSuccessStatus: 200,
+}
 
 const ThermalPrinter = require("node-thermal-printer").printer;
 const PrinterTypes = require("node-thermal-printer").types;
 
-const chromeLauncher = require('chrome-launcher');
+// const chromeLauncher = require('chrome-launcher');
 
-const ORDER_TYPE = "ORDER"
-const RECEIPT_TYPE = "RECEIPT"
-
-
-function print(data) {
-
-    let printers = []
-    data.SELECTED_PRINTERS.forEach(function (item) {
-        let printer = new ThermalPrinter({
-            type: PrinterTypes.EPSON,
-            interface: item.TCP_ADDRESS,
-            width: 40,
-            characterSet: 'PC857_TURKISH',
-        });
-        console.log('created printer ', printer);
-        printer.DETAILS = item
-        console.log('printer with details', printer.DETAILS)
-        printers.push(printer)
-    })
-
-    if (data.TYPE === RECEIPT_TYPE) {
-        console.log('printing with new printer recipet')
-        let printer = printers.find(function (p) {
-            return p.DETAILS.roles.RECEIPT === true
-        })
-
-        if (!printer) {
-            console.log('no printer')
-            return
-        }
-
-        printer.println(replaceTrChars(data.OUTPUT));
-        printer.cut();
-
-        try {
-            let execute = printer.execute();
-            printer.beep(); // Sound internal beeper/buzzer (if available)
-            console.log("Print done receipt, bar!i with new");
-            // await printer.printImage(".touch.png"); // Print PNG image
-        } catch (error) {
-            console.log("Print failed with new:", error);
-        }
-
-
-    } else if (data.TYPE === ORDER_TYPE) {
-
-
-        if (data.ORDERS.bar) {
-
-            let printer = printers.find(function (p) {
-                return p.DETAILS.roles.ORDER === true &&
-                    p.DETAILS.sectionRef === 'bar'
-            })
-
-            if (!printer) {
-                console.log("no printer available for bar")
-                return
-            }
-
-            printer.println(replaceTrChars(data.ORDERS.bar));
-            printer.cut();
-
-            try {
-                let execute = printer.execute();
-                printer.beep(); // Sound internal beeper/buzzer (if available)
-                console.log("Print done bar with new!");
-                // await printer.printImage(".touch.png"); // Print PNG image
-            } catch (error) {
-                console.log("Print failed with new:", error);
-            }
-        }
-
-        if (data.ORDERS.kitchen) {
-            let printer = printers.find(function (p) {
-                console.log(p.DETAILS.sectionRef)
-                return p.DETAILS.roles.ORDER === true &&
-                    p.DETAILS.sectionRef === 'mutfak'
-            })
-
-            if (!printer) {
-                console.log("no printer available for kitchen")
-                return
-            }
-
-            // printer.setTextDoubleHeight();                              // Set text to double height
-            // printer.setTextDoubleWidth();
-
-            console.log(data.ORDERS.kitchen)
-            printer.println(replaceTrChars(data.ORDERS.kitchen));
-            printer.cut();
-
-            try {
-                printer.beep(); // Sound internal beeper/buzzer (if available)
-                let execute = printer.execute();
-                console.log("Print done kitchen with new!");
-                // await printer.printImage(".touch.png"); // Print PNG image
-            } catch (error) {
-                console.log("Print failed with new:", error);
-            }
-        }
-
-    }
-
-    return (data)
+function createPrinter(config) {
+    let printer = new ThermalPrinter({
+        type: PrinterTypes.EPSON,
+        interface: config.TCP_ADDRESS,
+        width: config.width ?? 40,
+        characterSet: 'PC857_TURKISH',
+    });
+    // console.log('created printer ', printer);
+    printer.DETAILS = config
+    return printer;
 }
 
+function print(data) {
+    console.log(data.printerConfig.TCP_ADDRESS)
+    console.log(data.output);
+    const printer = createPrinter(data.printerConfig)
+    printer.println(replaceTrChars(data.output));
+    printer.cut();
+
+    try {
+        let execute = printer.execute();
+        printer.beep(); // Sound internal beeper/buzzer (if available)
+        console.log("Printing is successful!");
+    } catch (error) {
+        console.log("Print failed :", error);
+    }
+    return;
+}
 
 function replaceAll(string, search, replace) {
     if (string) {
@@ -134,30 +60,18 @@ function replaceAll(string, search, replace) {
 }
 
 const replaceTrChars = (temp) => {
-    // const searchRegExp = /\s/g;
-    // replaceWith = '-';
-
     let res = replaceAll(temp, 'İ', "i");
-    // console.log(res)
     res = replaceAll(res, "ş", "s");
     res = replaceAll(res, "Ş", "S");
     res = replaceAll(res, "ğ", "g");
-    // console.log(res)
     return res
 }
 
-
 // Configuiring simple express routes
-// getDir() function is used here along with package.json.pkg.assets
 app.use(bodyParser.json());
-app.use('/', express.static(getDir() + '/views'));
-
-app.get('/', function (req, res) {
-    res.sendFile(getDir() + '/views/index.html');
-});
+app.use(cors(corsOptions));
 
 app.post('/print', (req, res) => {
-    console.dir(req.body);
     print(req.body);
     return res.send(JSON.stringify("hello"));
 });
@@ -166,21 +80,9 @@ app.post('/print', (req, res) => {
 server.listen(port, () => console.log("Server at", port));
 
 
-chromeLauncher.launch({
-    startingUrl: 'http://localhost:5002',
-    // chromeFlags: ['--headless', '--disable-gpu']
-}).then(chrome => {
-    console.log(`Chrome debugging port running on ${chrome.port}`);
-});
-
-
-
-// Using a function to set default app path
-function getDir() {
-    return __dirname;
-    if (process.pkg) {
-        return path.resolve(process.execPath + "/..");
-    } else {
-        return path.join(require.main ? require.main.path : process.cwd());
-    }
-}
+// chromeLauncher.launch({
+//     startingUrl: 'http://localhost:5002',
+//     // chromeFlags: ['--headless', '--disable-gpu']
+// }).then(chrome => {
+//     console.log(`Chrome debugging port running on ${chrome.port}`);
+// });

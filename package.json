@@ -1,11 +1,12 @@
 {
-  "name": "compiled-printer-app",
-  "version": "1.0.0",
+  "name": "pionpos-thermal-printer-app",
+  "version": "0.0.1",
   "description": "",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node index.js"
+    "start": "node index.js",
+    "compile": "pkg ."
   },
   "keywords": [],
   "author": "",
@@ -18,6 +19,7 @@
   "dependencies": {
     "body-parser": "^1.20.0",
     "chrome-launcher": "^0.15.1",
+    "cors": "^2.8.5",
     "express": "^4.18.1",
     "node-thermal-printer": "^4.1.2"
   },
