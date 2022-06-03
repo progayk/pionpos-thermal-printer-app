@@ -77,7 +77,14 @@ app.post('/print', (req, res) => {
 });
 
 // Setting up our port
-server.listen(port, () => console.log("Server at", port));
+server.listen(port, () => {
+    console.log(`
++-----------------------------------------+
+|  PIONPOS THERMAL PRINTER SERVER v0.0.2  |
++-----------------------------------------+
+    `)
+    console.log("Server running at: ", `localhost:${port}`);
+});
 
 
 // chromeLauncher.launch({
