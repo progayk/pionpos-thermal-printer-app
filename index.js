@@ -35,15 +35,18 @@ function createPrinter(config) {
     return printer;
 }
 
-function print(data) {
+async function print(data) {
     console.log(data.printerConfig.TCP_ADDRESS)
-    console.log(data.output);
     const printer = createPrinter(data.printerConfig)
-    printer.println(replaceTrChars(data.output));
+    const output = replaceTrChars(data.output);
+
+    printer.println(output);
     printer.cut();
 
+    console.log(output);
+
     try {
-        let execute = printer.execute();
+        let execute = await printer.execute();
         printer.beep(); // Sound internal beeper/buzzer (if available)
         console.log("Printing is successful!");
     } catch (error) {
@@ -61,9 +64,16 @@ function replaceAll(string, search, replace) {
 
 const replaceTrChars = (temp) => {
     let res = replaceAll(temp, 'İ', "i");
+    res = replaceAll(res, "ı", "i");
     res = replaceAll(res, "ş", "s");
     res = replaceAll(res, "Ş", "S");
+    res = replaceAll(res, "ü", "u");
+    res = replaceAll(res, "ö", "o");
+    res = replaceAll(res, "Ö", "O");
+    res = replaceAll(res, "ç", "c");
+    res = replaceAll(res, "Ç", "C");
     res = replaceAll(res, "ğ", "g");
+    res = replaceAll(res, "Ğ", "G");
     return res
 }
 
