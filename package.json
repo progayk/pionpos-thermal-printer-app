@@ -21,6 +21,7 @@
     "chrome-launcher": "^0.15.1",
     "cors": "^2.8.5",
     "express": "^4.18.1",
+    "node-html-to-image": "^3.3.0",
     "node-thermal-printer": "^4.1.2"
   },
   "devDependencies": {

@@ -1,105 +1,133 @@
-
-(function () {
-    'use strict';
-    // this function is strict...
-}());
-
-const express = require('express');
-const bodyParser = require('body-parser');
+const express = require("express");
+const bodyParser = require("body-parser");
 const app = express();
-const Server = require('http').Server;
-const server = new Server(app);
-// const path = require('path');
+
+const nodeHtmlToImage = require("node-html-to-image");
+
+let screenshotPath = "./screenshot.png";
+let processedIdList = [];
+let printActionLogs = [];
+
+app.get("/", (req, res) => {
+    res.send("welcome to printer app server!");
+});
+
 const port = 5002;
 const cors = require("cors");
 const corsOptions = {
-    origin: '*',
-    // credentials: true,            //access-control-allow-credentials:true
-    // optionSuccessStatus: 200,
-}
+    origin: "*",
+};
 
 const ThermalPrinter = require("node-thermal-printer").printer;
 const PrinterTypes = require("node-thermal-printer").types;
-
-// const chromeLauncher = require('chrome-launcher');
 
 function createPrinter(config) {
     let printer = new ThermalPrinter({
         type: PrinterTypes.EPSON,
         interface: config.TCP_ADDRESS,
         width: config.width ?? 40,
-        characterSet: 'PC857_TURKISH',
+        characterSet: "PC857_TURKISH",
     });
-    // console.log('created printer ', printer);
-    printer.DETAILS = config
+    printer.DETAILS = config;
     return printer;
 }
 
 async function print(data) {
-    console.log(data.printerConfig.TCP_ADDRESS)
-    const printer = createPrinter(data.printerConfig)
-    const output = replaceTrChars(data.output);
-
-    printer.println(output);
-    printer.cut();
-
-    console.log(output);
-
     try {
-        let execute = await printer.execute();
-        printer.beep(); // Sound internal beeper/buzzer (if available)
-        console.log("Printing is successful!");
+        const printer = createPrinter(data.SELECTED_PRINTER);
+
+        await printer.printImage(screenshotPath);
+        printer.cut();
+
+        await printer.execute();
+        printer.beep();
+
+        return { SUCCESS: true, id: data.id, data };
     } catch (error) {
-        console.log("Print failed :", error);
+        // remove from processed list
+        processedIdList = processedIdList.filter((item) => item !== data.id);
+        return { ERROR: true, data, id: data.id };
     }
-    return;
 }
 
-function replaceAll(string, search, replace) {
-    if (string) {
-        return string.split(search).join(replace);
-    }
-    return ""
-}
-
-const replaceTrChars = (temp) => {
-    let res = replaceAll(temp, 'İ', "i");
-    res = replaceAll(res, "ı", "i");
-    res = replaceAll(res, "ş", "s");
-    res = replaceAll(res, "Ş", "S");
-    res = replaceAll(res, "ü", "u");
-    res = replaceAll(res, "ö", "o");
-    res = replaceAll(res, "Ö", "O");
-    res = replaceAll(res, "ç", "c");
-    res = replaceAll(res, "Ç", "C");
-    res = replaceAll(res, "ğ", "g");
-    res = replaceAll(res, "Ğ", "G");
-    return res
-}
-
-// Configuiring simple express routes
-app.use(bodyParser.json());
 app.use(cors(corsOptions));
+app.use(bodyParser.json({ limit: "10mb" }));
+app.use(bodyParser.urlencoded({ limit: "10mb", extended: true }));
 
-app.post('/print', (req, res) => {
-    print(req.body);
-    return res.send(JSON.stringify("hello"));
+
+app.post("/print", async (req, res) => {
+    if (processedIdList.includes(req.body.id)) {
+        return;
+    }
+
+    processedIdList.push(req.body.id);
+    processedIdList = processedIdList.slice(-10);
+
+    const imageSaveOperation = await saveImage(req.body.msg);
+
+    if (!imageSaveOperation) {
+        processedIdList = processedIdList.filter((item) => item !== req.body.id);
+
+        return res.send({
+            ERROR: true,
+            IMAGE_PROCESS_FAILED: true,
+            data: req.body,
+            id: req.body.id,
+        });
+
+    }
+
+    const printAction = await print(req.body);
+
+    res.send(printAction);
+
+    printActionLogs.push(printAction);
+    printActionLogs = printActionLogs.slice(-10);
+
 });
 
-// Setting up our port
-server.listen(port, () => {
-    console.log(`
-+-----------------------------------------+
-|  PIONPOS THERMAL PRINTER SERVER v0.0.2  |
-+-----------------------------------------+
-    `)
+
+app.post("/test", async (req, res) => {
+    try {
+        const html = req.body.msg;
+
+        const imageSaveOperation = await saveImage(html);
+
+        if (!imageSaveOperation) {
+            return res.send({ ERROR: true });
+        }
+
+        const result = await print(req.body);
+        res.send(result);
+    } catch (error) {
+        throw new Error("Error occured while printing", error);
+    }
+});
+
+app.post("/health-check", async (req, res) => {
+    const printer = createPrinter(req.body);
+    const isConnected = await printer.isPrinterConnected(); // Check if printer is connected, return bool of status
+    res.send({
+        ...req.body,
+        isConnected,
+    });
+});
+
+app.listen(port, () => {
     console.log("Server running at: ", `localhost:${port}`);
 });
 
+async function saveImage(html) {
+    try {
+        console.log({ screenshotPath })
+        await nodeHtmlToImage({
+            output: screenshotPath,
+            html: html,
+        });
 
-// chromeLauncher.launch({
-//     startingUrl: 'http://localhost:5002',
-//     // chromeFlags: ['--headless', '--disable-gpu']
-// }).then(chrome => {
-//     console.log(`Chrome debugging port running on ${chrome.port}`);
-// });
+        return true;
+    } catch (error) {
+        console.error("Failed to take screenshot", error);
+        return false;
+    }
+}
