@@ -1,19 +1,15 @@
 const express = require("express");
-const bodyParser = require("body-parser");
+const cors = require("cors");
 const app = express();
 
-const nodeHtmlToImage = require("node-html-to-image");
-
-let screenshotPath = "./screenshot.png";
 let processedIdList = [];
 let printActionLogs = [];
 
 app.get("/", (req, res) => {
-    res.send("welcome to printer app server!");
+    res.send("PIONPOS printer app server!");
 });
 
 const port = 5002;
-const cors = require("cors");
 const corsOptions = {
     origin: "*",
 };
@@ -34,9 +30,11 @@ function createPrinter(config) {
 
 async function print(data) {
     try {
-        const printer = createPrinter(data.SELECTED_PRINTER);
+        const { SELECTED_PRINTER, imgBuffer } = data;
 
-        await printer.printImage(screenshotPath);
+        const printer = createPrinter(SELECTED_PRINTER);
+
+        await printer.printImageBuffer(imgBuffer);
         printer.cut();
 
         await printer.execute();
@@ -44,16 +42,13 @@ async function print(data) {
 
         return { SUCCESS: true, id: data.id, data };
     } catch (error) {
-        // remove from processed list
         processedIdList = processedIdList.filter((item) => item !== data.id);
         return { ERROR: true, data, id: data.id };
     }
 }
 
 app.use(cors(corsOptions));
-app.use(bodyParser.json({ limit: "10mb" }));
-app.use(bodyParser.urlencoded({ limit: "10mb", extended: true }));
-
+app.use(express.json());
 
 app.post("/print", async (req, res) => {
     if (processedIdList.includes(req.body.id)) {
@@ -62,20 +57,6 @@ app.post("/print", async (req, res) => {
 
     processedIdList.push(req.body.id);
     processedIdList = processedIdList.slice(-10);
-
-    const imageSaveOperation = await saveImage(req.body.msg);
-
-    if (!imageSaveOperation) {
-        processedIdList = processedIdList.filter((item) => item !== req.body.id);
-
-        return res.send({
-            ERROR: true,
-            IMAGE_PROCESS_FAILED: true,
-            data: req.body,
-            id: req.body.id,
-        });
-
-    }
 
     const printAction = await print(req.body);
 
@@ -89,17 +70,17 @@ app.post("/print", async (req, res) => {
 
 app.post("/test", async (req, res) => {
     try {
-        const html = req.body.msg;
+        const { image, printer } = req.body
+        const buffer = Buffer.from(image.split(',')[1], 'base64');
 
-        const imageSaveOperation = await saveImage(html);
+        const result = await print({
+            SELECTED_PRINTER: printer,
+            imgBuffer: buffer,
+        });
 
-        if (!imageSaveOperation) {
-            return res.send({ ERROR: true });
-        }
-
-        const result = await print(req.body);
         res.send(result);
     } catch (error) {
+        console.log(error)
         throw new Error("Error occured while printing", error);
     }
 });
@@ -114,20 +95,19 @@ app.post("/health-check", async (req, res) => {
 });
 
 app.listen(port, () => {
-    console.log("Server running at: ", `localhost:${port}`);
+    console.log(`
+    
+██████╗ ██╗ ██████╗ ███╗   ██╗██████╗  ██████╗ ███████╗
+██╔══██╗██║██╔═══██╗████╗  ██║██╔══██╗██╔═══██╗██╔════╝
+██████╔╝██║██║   ██║██╔██╗ ██║██████╔╝██║   ██║███████╗
+██╔═══╝ ██║██║   ██║██║╚██╗██║██╔═══╝ ██║   ██║╚════██║
+██║     ██║╚██████╔╝██║ ╚████║██║     ╚██████╔╝███████║
+╚═╝     ╚═╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝      ╚═════╝ ╚══════╝
+                                                       
+
+            PRINTER SERVER @2023
+            
+    `)
+
+    console.log("Server running at", `localhost:${port}`);
 });
-
-async function saveImage(html) {
-    try {
-        console.log({ screenshotPath })
-        await nodeHtmlToImage({
-            output: screenshotPath,
-            html: html,
-        });
-
-        return true;
-    } catch (error) {
-        console.error("Failed to take screenshot", error);
-        return false;
-    }
-}
